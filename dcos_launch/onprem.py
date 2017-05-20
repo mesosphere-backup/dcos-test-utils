@@ -9,6 +9,7 @@ import yaml
 from dcos_test_utils.helpers import Url
 
 import dcos_launch.aws
+import dcos_launch.gce
 import dcos_launch.util
 
 log = logging.getLogger(__name__)
@@ -34,6 +35,8 @@ class OnpremLauncher(dcos_launch.util.AbstractLauncher):
     def get_bare_cluster_launcher(self):
         if self.config['platform'] == 'aws':
             return dcos_launch.aws.BareClusterLauncher(self.config)
+        elif self.config['platform'] == 'gce':
+            return dcos_launch.gce.BareClusterLauncher(self.config)
         else:
             raise dcos_launch.util.LauncherError('Platform currently not supported for onprem: {}'.format(
                 self.config['platform']))

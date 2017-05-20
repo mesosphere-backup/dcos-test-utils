@@ -1,0 +1,6 @@
+deployment_name: gce-test
+key_helper: true
+project_id: development-23402348920358
+zone: us-west1-a
+ssh_user: a_user
+ssh_key: 023840923r0fd23jio32f

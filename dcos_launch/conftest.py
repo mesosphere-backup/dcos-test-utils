@@ -208,6 +208,17 @@ def aws_onprem_with_helper_config_path(tmpdir, mock_bare_cluster_hosts):
     return get_temp_config_path(tmpdir, 'aws-onprem-with-helper.yaml')
 
 
+@pytest.fixture
+def gce_onprem_config_path(tmpdir, ssh_key_path, mock_bare_cluster_hosts):
+    return get_temp_config_path(tmpdir, 'gce-onprem.yaml', update={
+        'ssh_private_key_filename': ssh_key_path})
+
+
+@pytest.fixture
+def gce_onprem_with_helper_config_path(tmpdir, mock_bare_cluster_hosts):
+    return get_temp_config_path(tmpdir, 'gce-onprem-with-helper.yaml')
+
+
 def check_cli(cmd):
     assert dcos_launch.cli.main(cmd) == 0, 'Command failed! {}'.format(' '.join(cmd))
 
