@@ -1,0 +1,17 @@
+deployment_name: gce-test1
+key_helper: true
+zone: us-west1-a
+platform: gce
+num_masters: 1
+num_private_agents: 0
+num_public_agents: 1
+ssh_user: dcos
+key_helper: true
+onprem_dcos_config_contents: none
+ssh_private_key: none
+ssh_port: none
+installer_url: none
+installer_port: none
+machineType: f1-micro
+sourceImage: debian-8-jessie-v20160301
+network: default
