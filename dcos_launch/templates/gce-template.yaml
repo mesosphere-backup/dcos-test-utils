@@ -1,7 +1,7 @@
 ---
 resources:
 - type: compute.v1.instance
-  name: vm2
+  name: vm1
   properties:
     zone: ${zone}
     machineType: https://www.googleapis.com/compute/v1/projects/${project_id}/zones/${zone}/machineTypes/${machineType}
@@ -13,7 +13,7 @@ resources:
       initializeParams:
         sourceImage: https://www.googleapis.com/compute/v1/projects/debian-cloud/global/images/${sourceImage}
     networkInterfaces:
-    - network: https://www.googleapis.com/compute/v1/projects/${project_id}/global/networks/${network}
+    - network: https://www.googleapis.com/compute/v1/projects/${project_id}/global/networks/default
       # Access Config required to give the instance a public IP address
       accessConfigs:
       - name: External NAT
