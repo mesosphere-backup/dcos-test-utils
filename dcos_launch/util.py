@@ -5,12 +5,12 @@ import subprocess
 import sys
 
 import cryptography.hazmat.backends
-import dcos_test_utils
 import pkg_resources
 import yaml
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
+import dcos_test_utils
 
 log = logging.getLogger(__name__)
 

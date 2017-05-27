@@ -1,6 +1,5 @@
 from setuptools import setup
 
-
 setup(
     name='dcos-test-utils',
     version='0.1',
@@ -24,6 +23,7 @@ setup(
         'botocore',
         'cerberus',
         'docopt',
+        'google-api-python-client',
         'requests',
         'retrying',
         'pyinstaller==3.2',

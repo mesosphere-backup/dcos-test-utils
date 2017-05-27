@@ -15,7 +15,6 @@ dcos_config:
         - 8.8.8.8
     dns_search: mesos
     master_discovery: static
-    ip_detect_filename: ip-detect.sh
 num_masters: 3
 num_private_agents: 2
 num_public_agents: 1

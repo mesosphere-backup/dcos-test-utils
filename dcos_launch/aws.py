@@ -1,8 +1,7 @@
 import logging
 
-import dcos_test_utils.aws
-
 import dcos_launch.util
+import dcos_test_utils.aws
 
 log = logging.getLogger(__name__)
 
