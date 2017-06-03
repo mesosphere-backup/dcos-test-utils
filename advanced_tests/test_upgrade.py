@@ -20,13 +20,15 @@ import os
 import pprint
 import uuid
 
-import dcos_test_utils
-import dcos_test_utils.dcos_api_session
-import dcos_test_utils.upgrade
 import pytest
 import retrying
 import yaml
-from dcos_test_utils.helpers import CI_CREDENTIALS, marathon_app_id_to_mesos_dns_subdomain
+from dcos_test_utils import (
+    CI_CREDENTIALS,
+    dcos_api_session,
+    enterprise,
+    marathon_app_id_to_mesos_dns_subdomain,
+    upgrade)
 
 log = logging.getLogger(__name__)
 
@@ -176,14 +178,14 @@ def onprem_cluster(launcher):
 
 
 @pytest.fixture(scope='session')
-def dcos_api_session(onprem_cluster, launcher):
-    session = dcos_test_utils.dcos_api_session.DcosApiSession(
+def dcos_api(onprem_cluster, launcher):
+    session = dcos_api_session.DcosApiSession(
         'http://' + onprem_cluster.masters[0].public_ip,
         [m.public_ip for m in onprem_cluster.masters],
         [m.public_ip for m in onprem_cluster.private_agents],
         [m.public_ip for m in onprem_cluster.public_agents],
         'root',
-        dcos_test_utils.dcos_api_session.DcosUser(CI_CREDENTIALS),
+        dcos_api_session.DcosUser(CI_CREDENTIALS),
         exhibitor_admin_password=launcher.config['dcos_config'].get('exhibitor_admin_password'))
     session.wait_for_dcos()
     return session
@@ -231,28 +233,28 @@ def parse_dns_log(dns_log_content):
 
 
 @pytest.fixture(scope='session')
-def setup_workload(dcos_api_session, viptalk_app, viplisten_app, healthcheck_app, dns_app):
+def setup_workload(dcos_api, viptalk_app, viplisten_app, healthcheck_app, dns_app):
     # TODO(branden): We ought to be able to deploy these apps concurrently. See
     # https://mesosphere.atlassian.net/browse/DCOS-13360.
-    dcos_api_session.marathon.deploy_app(viplisten_app)
-    dcos_api_session.marathon.ensure_deployments_complete()
+    dcos_api.marathon.deploy_app(viplisten_app)
+    dcos_api.marathon.ensure_deployments_complete()
     # viptalk app depends on VIP from viplisten app, which may still fail
     # the first try immediately after ensure_deployments_complete
-    dcos_api_session.marathon.deploy_app(viptalk_app, ignore_failed_tasks=True)
-    dcos_api_session.marathon.ensure_deployments_complete()
+    dcos_api.marathon.deploy_app(viptalk_app, ignore_failed_tasks=True)
+    dcos_api.marathon.ensure_deployments_complete()
 
-    dcos_api_session.marathon.deploy_app(healthcheck_app)
-    dcos_api_session.marathon.ensure_deployments_complete()
+    dcos_api.marathon.deploy_app(healthcheck_app)
+    dcos_api.marathon.ensure_deployments_complete()
     # This is a hack to make sure we don't deploy dns_app before the name it's
     # trying to resolve is available.
-    wait_for_dns(dcos_api_session, dns_app['env']['RESOLVE_NAME'])
-    dcos_api_session.marathon.deploy_app(dns_app, check_health=False)
-    dcos_api_session.marathon.ensure_deployments_complete()
+    wait_for_dns(dcos_api, dns_app['env']['RESOLVE_NAME'])
+    dcos_api.marathon.deploy_app(dns_app, check_health=False)
+    dcos_api.marathon.ensure_deployments_complete()
 
     test_apps = [healthcheck_app, dns_app, viplisten_app, viptalk_app]
     test_app_ids = [app['id'] for app in test_apps]
 
-    tasks_start = {app_id: sorted(app_task_ids(dcos_api_session, app_id)) for app_id in test_app_ids}
+    tasks_start = {app_id: sorted(app_task_ids(dcos_api, app_id)) for app_id in test_app_ids}
     log.debug('Test app tasks at start:\n' + pprint.pformat(tasks_start))
 
     for app in test_apps:
@@ -262,22 +264,25 @@ def setup_workload(dcos_api_session, viptalk_app, viplisten_app, healthcheck_app
     # the master's view after the upgrade.
     # See this issue for why we check for a difference:
     # https://issues.apache.org/jira/browse/MESOS-1718
-    task_state_start = get_master_task_state(dcos_api_session, tasks_start[test_app_ids[0]][0])
+    task_state_start = get_master_task_state(dcos_api, tasks_start[test_app_ids[0]][0])
     return test_app_ids, tasks_start, task_state_start
 
 
 @pytest.fixture(scope='session')
-def upgraded_dcos(dcos_api_session, launcher, setup_workload, onprem_cluster):
+def upgraded_dcos(dcos_api, launcher, setup_workload, onprem_cluster):
     """ By invoking this fixture, a given test or fixtre is executed AFTER the upgrade
     """
     upgraded_user_config = dict()
     if 'TEST_UPGRADE_CONFIG_PATH' in os.environ:
         with open(os.environ['TEST_UPGRADE_CONFIG_PATH'], 'r') as f:
             upgraded_user_config = yaml.load(f.read())
-    dcos_test_utils.upgrade.upgrade_dcos(
-        dcos_api_session,
+    upgraded_dcos_api_session = dcos_api
+    if os.getenv('TEST_UPGRADE_ENTERPRISE', 'false') == 'true':
+        upgraded_dcos_api_session = enterprise.Enterprise
+    upgrade.upgrade_dcos(
+        upgraded_dcos_api_session,
         onprem_cluster,
-        dcos_api_session.get_version(),
+        dcos_api.get_version(),
         os.environ['TEST_UPGRADE_INSTALLER_URL'],
         upgraded_user_config,
         launcher.config['platform'])

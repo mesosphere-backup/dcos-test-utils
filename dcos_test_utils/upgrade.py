@@ -39,7 +39,7 @@ def upgrade_dcos(
 
     Args:
         dcos_api_session: API session object capable of authenticating with the
-            upgraded DC/OS cluster
+            **upgraded** DC/OS cluster
         onprem_cluster: SSH-backed onprem abstraction for the cluster to be upgraded
         installer_url: URL for the installer to drive the upgrade
         user_config: this function already creates a viable upgrade config based on
