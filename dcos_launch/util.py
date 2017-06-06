@@ -1,5 +1,6 @@
 import abc
 import logging
+import os
 import subprocess
 import sys
 
@@ -21,6 +22,15 @@ MOCK_GATEWAY_ID = 'gateway-foo-bar'
 MOCK_STACK_ID = 'this-is-a-important-test-stack::deadbeefdeadbeef'
 
 NO_TEST_FLAG = 'NO PRIVATE SSH KEY PROVIDED - CANNOT TEST'
+
+
+def set_from_env(key):
+    """ If key is set in env, return its value, else raise an error
+    """
+    if key in os.environ:
+        return os.environ[key]
+    raise LauncherError(
+        'MissingParameter', '{} must be set in local env, but was not found'.format(key))
 
 
 def read_file(filename: str):
@@ -74,8 +84,9 @@ class AbstractLauncher(metaclass=abc.ABCMeta):
     def delete(self):
         raise NotImplementedError()
 
-    def test(self, args, env_dict, test_host=None, test_port=22):
-        """
+    def test(self, args: list, env_dict: dict, test_host=None, test_port=22) -> int:
+        """ Connects to master host with SSH and then run the internal integration test
+
         Args:
             args: a list of args that will follow the py.test command
             env_dict: the env to use during the test
@@ -85,9 +96,14 @@ class AbstractLauncher(metaclass=abc.ABCMeta):
         if self.config['ssh_private_key'] == NO_TEST_FLAG or 'ssh_user' not in self.config:
             raise LauncherError('MissingInput', 'DC/OS Launch is missing sufficient SSH info to run tests!')
         details = self.describe()
-        # populate minimal env if not already set
-        if test_host is None:
-            test_host = details['masters'][0]['public_ip']
+        # populate minimal env if not already set. Note: use private IPs as this test is from
+        # within the cluster
+        # required for 1.8
+        if 'DNS_SEARCH' not in env_dict:
+            env_dict['DNS_SEARCH'] = 'false'
+        if 'DCOS_PROVIDER' not in env_dict:
+            env_dict['DCOS_PROVIDER'] = self.config['provider']
+        # required for 1.8 and 1.9
         if 'MASTER_HOSTS' not in env_dict:
             env_dict['MASTER_HOSTS'] = ','.join(m['private_ip'] for m in details['masters'])
         if 'PUBLIC_MASTER_HOSTS' not in env_dict:
@@ -98,21 +114,37 @@ class AbstractLauncher(metaclass=abc.ABCMeta):
             env_dict['PUBLIC_SLAVE_HOSTS'] = ','.join(m['private_ip'] for m in details['public_agents'])
         if 'DCOS_DNS_ADDRESS' not in env_dict:
             env_dict['DCOS_DNS_ADDRESS'] = 'http://' + details['masters'][0]['private_ip']
+        # check for any environment variables that contain spaces
+        env_dict = {e: "'{}'".format(env_dict[e]) if ' ' in env_dict[e] else env_dict[e] for e in env_dict}
         env_string = ' '.join(['{}={}'.format(e, env_dict[e]) for e in env_dict])
         arg_string = ' '.join(args)
+        # To support 1.8.9-EE, try using the dcos-integration-test-ee folder if possible
         pytest_cmd = """ "source /opt/mesosphere/environment.export &&
-cd /opt/mesosphere/active/dcos-integration-test &&
+cd `find /opt/mesosphere/active/ -name dcos-integration-test* | sort | tail -n 1` &&
 {env} py.test {args}" """.format(env=env_string, args=arg_string)
         log.info('Running integration test...')
-        return try_to_output_unbuffered(self.config, test_host, pytest_cmd)
+        if test_host is None:
+            test_host = details['masters'][0]['public_ip']
+        if ':' in test_host:
+            test_host, test_port = test_host.split(':')
+        return try_to_output_unbuffered(self.config, test_host, pytest_cmd, test_port)
 
 
-def try_to_output_unbuffered(info, test_host, pytest_cmd):
-    """ Writing straight to STDOUT buffer does not work with syscap so mock this function out
+def try_to_output_unbuffered(info, test_host: str, bash_cmd: str, port: int) -> int:
+    """ Tries to run a command and directly output to STDOUT
+
+    Args:
+        test_host: ip string for host to connect to
+        bash_cmd: string to be passed to BASH
+        port: SSH port to use on test_host
+
+    Returns:
+        return code of bash_cmd (int)
     """
     ssh_client = dcos_test_utils.ssh_client.SshClient(info['ssh_user'], info['ssh_private_key'])
+    ssh_client.wait_for_ssh_connection(test_host, port=port)
     try:
-        ssh_client.command(test_host, ['bash', '-c', pytest_cmd], stdout=sys.stdout.buffer)
+        ssh_client.command(test_host, ['bash', '-c', bash_cmd], port=port, stdout=sys.stdout.buffer)
     except subprocess.CalledProcessError as e:
         log.exception('Test run failed!')
         return e.returncode

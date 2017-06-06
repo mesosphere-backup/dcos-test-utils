@@ -12,8 +12,11 @@ log = logging.getLogger(__name__)
 class AzureResourceGroupLauncher(dcos_launch.util.AbstractLauncher):
     def __init__(self, config: dict):
         self.azure_wrapper = dcos_test_utils.arm.AzureWrapper(
-            config['azure_location'], config['azure_subscription_id'], config['azure_client_id'],
-            config['azure_client_secret'], config['azure_tenant_id'])
+            config['azure_location'],
+            dcos_launch.util.set_from_env('AZURE_SUBSCRIPTION_ID'),
+            dcos_launch.util.set_from_env('AZURE_CLIENT_ID'),
+            dcos_launch.util.set_from_env('AZURE_CLIENT_SECRET'),
+            dcos_launch.util.set_from_env('AZURE_TENANT_ID'))
         self.config = config
         log.debug('Using Azure Resource Group Launcher')
 
@@ -58,10 +61,3 @@ class AzureResourceGroupLauncher(dcos_launch.util.AbstractLauncher):
             return dcos_test_utils.arm.DcosAzureResourceGroup(self.config['deployment_name'], self.azure_wrapper)
         except Exception as ex:
             raise dcos_launch.util.LauncherError('GroupNotFound', None) from ex
-
-    def test(self, args: list, env: dict):
-        details = self.describe()
-        test_host = details['master_fqdn']
-        if 'DCOS_DNS_ADDRESS' not in env:
-            env['DCOS_DNS_ADDRESS'] = 'http://' + test_host
-        return super().test(args, env, test_host=test_host, test_port=2200)
