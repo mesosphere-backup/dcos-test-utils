@@ -324,11 +324,22 @@ class DcosApiSession(ARNodeApiClientMixin, RetryCommonHttpErrorsMixin, ApiClient
                     retry_on_exception=lambda _: False)
     def _wait_for_metronome(self):
         r = self.get('/service/metronome/v1/jobs')
-        # 500 and 504 are the expected behavior of a service
+        # 404, 500 and 504 are the expected behavior of a service
         # backend that is not up and running.
-        if r.status_code == 500 or r.status_code == 504:
-            log.info("Metronome gateway timeout, continue waiting for backend...")
+        expected_error_codes = {
+            404: ('It may be the case that Admin Router is returning a 404 '
+                  'despite the Metronome service existing because it uses a cache. '
+                  'This cache is updated periodically.'),
+            500: ('The service is responding with an internal server error. '
+                  'It may be that the service is still starting up.'),
+            504: ('Metronome is returning a Gateway Timeout Error.'
+                  'It may be that the service is still starting up.')
+        }
+
+        if r.status_code in expected_error_codes:
+            log.info(expected_error_codes[r.status_code])
             return False
+
         assert r.status_code == 200
 
     def wait_for_dcos(self):
