@@ -20,7 +20,7 @@ MOCK_VPC_ID = 'vpc-foo-bar'
 MOCK_SUBNET_ID = 'subnet-foo-bar'
 MOCK_GATEWAY_ID = 'gateway-foo-bar'
 MOCK_STACK_ID = 'this-is-a-important-test-stack::deadbeefdeadbeef'
-
+OS_NAMES = ('centos', 'centos-7-dcos-prereqs', 'rhel', 'ubuntu', 'coreos', 'debian')
 NO_TEST_FLAG = 'NO PRIVATE SSH KEY PROVIDED - CANNOT TEST'
 
 

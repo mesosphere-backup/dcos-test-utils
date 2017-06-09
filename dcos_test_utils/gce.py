@@ -9,13 +9,56 @@ from dcos_test_utils.helpers import Host
 
 log = logging.getLogger(__name__)
 
+OS_IMAGE_FAMILIES = {
+    'centos': 'centos-7',
+    'centos-7-dcos-prereqs': 'unsupported',
+    'rhel': 'rhel-7',
+    'ubuntu': 'ubuntu-1604-lts',
+    'coreos': 'coreos-stable',
+    'debian': 'debian-8'
+}
+
+IMAGE_PROJECTS = {
+    'centos': 'centos-cloud',
+    'rhel': 'rhel-cloud',
+    'ubuntu': 'ubuntu-os-cloud',
+    'coreos': 'coreos-cloud',
+    'debian': 'debian-cloud'
+}
+
+TEMPLATE = """
+- type: compute.v1.instance
+  name: {name}
+  properties:
+    zone: {zone}
+    machineType: zones/{zone}/machineTypes/{machineType}
+    disks:
+    - deviceName: boot
+      type: PERSISTENT
+      boot: true
+      autoDelete: true
+      initializeParams:
+        sourceImage: projects/{imageProject}/global/images/family/{sourceImage}
+    networkInterfaces:
+    - network: global/networks/default
+      # Access Config required to give the instance a public IP address
+      accessConfigs:
+      - name: External NAT
+        type: ONE_TO_ONE_NAT"""
+
 
 class Instance:
-    def __init__(self, name, priv_ip, pub_ip):
+    '''
+    Contains info about a node in a deployment
+    '''
+    def __init__(self, name: str, priv_ip: str, pub_ip: str):
         self.name = name
         self.private_ip = priv_ip
         self.public_ip = pub_ip
-        self.host = Host(self.private_ip, self.public_ip)
+
+    @property
+    def host(self):
+        return Host(self.private_ip, self.public_ip)
 
 
 class Deployment:
@@ -23,33 +66,26 @@ class Deployment:
         self.gce_wrapper = gce_wrapper
         self.name = name
         self.zone = zone
-        self.instances = []
-        self.fingerprint = None
-        self.errors = None
 
-    def get_instances(self):
-        if not self.instances:
-            instance_info_list = self.gce_wrapper.list_deployment_instances(self)
-            log.debug(instance_info_list)
-            for i in instance_info_list:
-                self.instances.append(Instance(i['name'],
-                                               i['networkInterfaces'][0]['networkIP'],
-                                               i['networkInterfaces'][0]['accessConfigs'][0]['natIP']))
-        return self.instances
+    @property
+    def instances(self) -> [Instance]:
+        for instance in self.gce_wrapper.get_instances_info(self):
+            log.debug(instance)
+            yield Instance(instance['name'],
+                           instance['networkInterfaces'][0]['networkIP'],
+                           instance['networkInterfaces'][0]['accessConfigs'][0]['natIP'])
 
-    def get_fingerprint(self):
-        if not self.fingerprint:
-            self.fingerprint = self.get_instances_info()[0]['metadata']['fingerprint']
-        log.debug('fingerprint: ' + self.fingerprint)
-        return self.fingerprint
+    @property
+    def fingerprint(self) -> str:
+        return next(self.gce_wrapper.get_instances_info(self))['metadata']['fingerprint']
 
-    def get_host_ips(self):
-        return [i.host for i in self.get_instances()]
+    def get_hosts(self):
+        return [i.host for i in self.instances]
 
     def apply_ssh_key(self, user, public_key):
         body = {
             'kind': 'compute#metadata',
-            'fingerprint': self.get_fingerprint(),
+            'fingerprint': self.fingerprint,
             'items': [
                 {
                     'key': 'ssh-keys',
@@ -58,16 +94,18 @@ class Deployment:
             ]
         }
 
-        for i in self.get_instances():
+        for i in self.instances:
             log.debug(self.gce_wrapper.set_metadata(self, body, i.name))
 
-    def get_info(self):
+    def get_info(self) -> dict:
         response = self.gce_wrapper.get_deployment_info(self)
         log.debug(response)
-        self.errors = response['operation'].get('error')
+        errors = response['operation'].get('error')
+        if errors:
+            raise Exception('The deployment you are accessing contains errors:' + str(errors))
         return response
 
-    def delete(self):
+    def delete(self) -> dict:
         response = self.gce_wrapper.delete_deployment(self)
         log.debug(response)
         return response
@@ -88,17 +126,12 @@ class Deployment:
             raise Exception('Deployment failed with response: ' + str(response))
 
     @retry(wait_fixed=2000, retry_on_result=_check_status)
-    def wait(self):
+    def wait(self) -> dict:
         response = self.get_info()
         log.debug(response)
         return response
 
-    def get_instances_info(self):
-        response = self.gce_wrapper.list_deployment_instances(self)
-        log.debug(response)
-        return response
-
-    def allow_external_access(self):
+    def allow_all_ports(self) -> dict:
         body = {
             "kind": "compute#firewall",
             "name": "allow all ports",
@@ -160,8 +193,19 @@ class GceWrapper:
         self.deployment_manager = discovery.build('deploymentmanager', 'v2', credentials=credentials)
         self.project_id = credentials_dict['project_id']
 
+    def build_template_body(self, config) -> str:
+        node_count = 1 + config['num_masters'] + config['num_public_agents'] + config['num_private_agents']
+        template_body = 'resources:'
+        for i in range(node_count):
+            template_body += TEMPLATE.format(name='vm' + str(i), sourceImage=config['source_image'],
+                                             machineType=config['machine_type'], imageProject=config['image_project'],
+                                             project_id=self.project_id, zone=config['zone'], )
+        return template_body
+
     @catch_http_exceptions
-    def deploy_instances(self, config):
+    def deploy_instances(self, config) -> dict:
+        config['template_body'] = self.build_template_body(config)
+
         body = {
             'name': config['deployment_name'],
             'target': {
@@ -174,32 +218,30 @@ class GceWrapper:
         return self.deployment_manager.deployments().insert(project=self.project_id, body=body).execute()
 
     @catch_http_exceptions
-    def list_deployment_instances(self, deployment: Deployment):
+    def get_instances_info(self, deployment: Deployment) -> [dict]:
         request = self.compute.instances().list(project=self.project_id, zone=deployment.zone)
-        instance_info_list = []
-
         while request is not None:
             response = request.execute()
             for instance_info in response['items']:
-                instance_info_list.append(instance_info)
-
-            request = self.deployment_manager.resources().list_next(previous_request=request, previous_response=response)
-
-        return instance_info_list
+                yield instance_info
+            request = self.deployment_manager.resources().list_next(previous_request=request,
+                                                                    previous_response=response)
 
     @catch_http_exceptions
-    def get_deployment_info(self, deployment: Deployment):
-        return self.deployment_manager.deployments().get(project=self.project_id, deployment=deployment.name).execute()
+    def get_deployment_info(self, deployment: Deployment) -> dict:
+        return self.deployment_manager.deployments().get(project=self.project_id,
+                                                         deployment=deployment.name).execute()
 
     @catch_http_exceptions
-    def delete_deployment(self, deployment: Deployment):
-        return self.deployment_manager.deployments().delete(project=self.project_id, deployment=deployment.name).execute()
+    def delete_deployment(self, deployment: Deployment) -> dict:
+        return self.deployment_manager.deployments().delete(project=self.project_id,
+                                                            deployment=deployment.name).execute()
 
     @catch_http_exceptions
-    def set_metadata(self, deployment: Deployment, body, instance_name):
+    def set_metadata(self, deployment: Deployment, body, instance_name) -> dict:
         return self.compute.instances().setMetadata(project=self.project_id, zone=deployment.zone,
                                                     instance=instance_name, body=body).execute()
 
     @catch_http_exceptions
-    def add_firewall_rule(self, body):
+    def add_firewall_rule(self, body) -> dict:
         return self.compute.firewalls().insert(project=self.project_id, body=body)

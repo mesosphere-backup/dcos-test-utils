@@ -2,6 +2,7 @@ import functools
 import json
 from contextlib import contextmanager
 
+import os
 import pytest
 
 import dcos_launch
@@ -48,6 +49,11 @@ class MockStack:
 
 mock_pub_priv_host = Host('127.0.0.1', '12.34.56')
 mock_priv_host = Host('127.0.0.1', None)
+MOCK_GCE_DEPLOYMENT_INFO = {'operation': {'status': 'DONE'}}
+MOCK_GCE_INSTANCE_INFO = {'name': 'mock_instance',
+                          'networkInterfaces': [{'networkIP': 'mock_net_ip',
+                                                 'accessConfigs': [{'natIP': 'mock_nat_ip'}]}],
+                          'metadata': {'fingerprint': 'mock_fingerprint'}}
 
 
 @pytest.fixture
@@ -127,18 +133,24 @@ def mocked_azure(monkeypatch, mocked_test_runner):
 
 @pytest.fixture
 def mocked_gce(monkeypatch):
-    monkeypatch.setattr(dcos_test_utils.gce.GceWrapper, '__init__', stub(None))
-    monkeypatch.setattr(dcos_test_utils.gce.GceWrapper, 'deploy_instances', stub(None))
-    monkeypatch.setattr(dcos_test_utils.gce.Deployment, '__init__', stub(None))
-    monkeypatch.setattr(dcos_test_utils.gce.Deployment, 'get_instances', [])
-    monkeypatch.setattr(dcos_test_utils.gce.Deployment, 'get_fingerprint', stub(None))
-    monkeypatch.setattr(dcos_test_utils.gce.Deployment, 'get_host_ips', stub([mock_pub_priv_host]))
-    monkeypatch.setattr(dcos_test_utils.gce.Deployment, 'apply_ssh_key', stub(None))
-    monkeypatch.setattr(dcos_test_utils.gce.Deployment, 'get_info', stub(None))
-    monkeypatch.setattr(dcos_test_utils.gce.Deployment, 'delete', stub(None))
-    monkeypatch.setattr(dcos_test_utils.gce.Deployment, '_check_status', stub(None))
-    monkeypatch.setattr(dcos_test_utils.gce.Deployment, 'wait', stub(None))
-    monkeypatch.setattr(dcos_test_utils.gce.Deployment, 'get_instances_info', [])
+    creds_mock = os.path.join(os.path.realpath(os.path.dirname(__file__)), 'gce-creds-mock.json')
+    with open(creds_mock, 'w') as f:
+        f.write('{}')
+    monkeypatch.setenv('GOOGLE_APPLICATION_CREDENTIALS', creds_mock)
+    monkeypatch.setenv('GCE_REGION', 'us-west1-a')
+    monkeypatch.setattr(dcos_test_utils.gce.GceWrapper, '__init__', lambda self, conf: setattr(self, 'project_id', ''))
+    monkeypatch.setattr(dcos_test_utils.gce.GceWrapper, 'deploy_instances', stub({}))
+    monkeypatch.setattr(dcos_test_utils.gce.GceWrapper, 'get_instances_info', lambda x, y:
+                        iter([MOCK_GCE_INSTANCE_INFO]))
+    monkeypatch.setattr(dcos_test_utils.gce.GceWrapper, 'get_deployment_info', stub(MOCK_GCE_DEPLOYMENT_INFO))
+    monkeypatch.setattr(dcos_test_utils.gce.GceWrapper, 'delete_deployment', stub({}))
+    monkeypatch.setattr(dcos_test_utils.gce.GceWrapper, 'set_metadata', stub({}))
+    monkeypatch.setattr(dcos_test_utils.gce.GceWrapper, 'add_firewall_rule', stub({}))
+    monkeypatch.setattr(dcos_launch.gce.BareClusterLauncher, 'key_helper', lambda self: self.config.update(
+        {'ssh_private_key': dcos_launch.util.MOCK_SSH_KEY_DATA, 'ssh_public_key': dcos_launch.util.MOCK_SSH_KEY_DATA}))
+    monkeypatch.setattr(dcos_launch.gce.BareClusterLauncher, 'get_hosts', lambda self: [mock_pub_priv_host] *
+                        (1 + self.config['num_masters'] + self.config['num_public_agents'] +
+                         self.config['num_private_agents']))
 
 
 class MockInstaller(dcos_test_utils.onprem.DcosInstallerApiSession):
@@ -184,7 +196,7 @@ def mocked_aws_cfstack_bare_cluster(monkeypatch, mock_bare_cluster_hosts):
     monkeypatch.setattr(dcos_test_utils.aws.BareClusterCfStack, 'get_host_ips', stub([mock_pub_priv_host] * 4))
     monkeypatch.setattr(
         dcos_test_utils.aws, 'fetch_stack', lambda stack_name,
-                                                   bw: dcos_test_utils.aws.BareClusterCfStack(stack_name, bw))
+        bw: dcos_test_utils.aws.BareClusterCfStack(stack_name, bw))
 
 
 @pytest.fixture
@@ -226,6 +238,12 @@ def aws_onprem_config_path(tmpdir, ssh_key_path, mocked_aws_cfstack_bare_cluster
 @pytest.fixture
 def aws_onprem_with_helper_config_path(tmpdir, mocked_aws_cfstack_bare_cluster):
     return get_temp_config_path(tmpdir, 'aws-onprem-with-helper.yaml')
+
+
+@pytest.fixture
+def gce_onprem_config_path(tmpdir, ssh_key_path, mock_bare_cluster_hosts, mocked_gce):
+    return get_temp_config_path(tmpdir, 'gce-onprem.yaml', update={
+        'ssh_private_key_filename': ssh_key_path})
 
 
 @pytest.fixture
