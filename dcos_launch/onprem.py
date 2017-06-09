@@ -76,7 +76,6 @@ class OnpremLauncher(dcos_launch.util.AbstractLauncher):
             onprem_config[new_key_name] = dcos_launch.util.read_file(onprem_config[key_name])
             del onprem_config[key_name]
         # set the simple default IP detect script if not provided
-        # currently, only AWS is supported, but when support changes, this will have to update
         if 'ip_detect_contents' not in onprem_config:
             onprem_config['ip_detect_contents'] = pkg_resources.resource_string(
                 'dcos_test_utils', 'ip-detect/{}.sh'.format(self.config['platform'])).decode()
@@ -147,7 +146,7 @@ class OnpremLauncher(dcos_launch.util.AbstractLauncher):
         desc = copy.copy(self.config)
         desc.update(extra_info)
         # blackout unwanted fields
-        del desc['template_body']
+        desc.pop('template_body', None)
         desc.pop('template_parameters', None)
         return desc
 

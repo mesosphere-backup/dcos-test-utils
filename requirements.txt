@@ -6,7 +6,7 @@ botocore
 cerberus
 docopt
 google-api-python-client
-requests
+requests==2.14.1
 retrying
 tox
 pyinstaller==3.2

@@ -42,6 +42,8 @@ setup(
         'dcos_test_utils': [
             'ip-detect/aws.sh',
             'ip-detect/aws_public.sh',
+            'ip-detect/gce.sh',
+            'ip-detect/gce_public.sh',
             'templates/vpc-cluster-template.json',
             'templates/vpc-ebs-only-cluster-template.json'
         ],

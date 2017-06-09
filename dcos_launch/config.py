@@ -217,13 +217,8 @@ ONPREM_DEPLOY_COMMON_SCHEMA = {
         'type': 'string',
         # not required because machine image can be set directly
         'required': False,
-        'default': 'cent-os-7-dcos-prereqs',
-        # TODO: This is AWS specific; move when support expands to other platforms
-        'allowed': list(dcos_test_utils.aws.OS_SSH_INFO.keys()) + ['centos-7']},
-    'ssh_user': {
-        'required': True,
-        'type': 'string',
-        'default_setter': lambda doc: dcos_test_utils.aws.OS_SSH_INFO[doc['os_name']].user},
+        'default': 'coreos',
+        'allowed': dcos_launch.util.OS_NAMES},
     'dcos_config': {
         'type': 'dict',
         'required': True,
@@ -260,14 +255,30 @@ AWS_ONPREM_SCHEMA = {
     'admin_location': {
         'type': 'string',
         'required': True,
-        'default': '0.0.0.0/0'}}
+        'default': '0.0.0.0/0'},
+    'ssh_user': {
+        'required': True,
+        'type': 'string',
+        'default_setter': lambda doc: dcos_test_utils.aws.SSH_INFO[doc['os_name']].user}}
 
 GCE_ONPREM_SCHEMA = {
-    'machineType': {
+    'machine_type': {
         'type': 'string',
         'required': False,
         'default': 'n1-standard-4'},
-    'sourceImage': {
+    'source_image': {
         'type': 'string',
         'required': False,
-        'default': 'coreos-stable'}}
+        'default_setter': lambda doc: dcos_test_utils.gce.OS_IMAGE_FAMILIES[doc['os_name']],
+        'allowed': ['coreos-stable']},
+    'image_project': {
+        'type': 'string',
+        'required': False,
+        'default_setter': lambda doc: dcos_test_utils.gce.IMAGE_PROJECTS[doc['os_name']]},
+    'ssh_public_key': {
+        'type': 'string',
+        'required': False},
+    'ssh_user': {
+        'required': True,
+        'type': 'string',
+        'default': 'dcos'}}
