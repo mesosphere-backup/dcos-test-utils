@@ -24,12 +24,13 @@ setup(
         'cerberus',
         'docopt',
         'google-api-python-client',
-        'requests',
-        'retrying',
+        'oauth2client==3.0.0',
         'pyinstaller==3.2',
         'py',
         'pytest',
-        'pyyaml'],
+        'pyyaml',
+        'requests==2.14.1',
+        'retrying'],
     entry_points={
         'console_scripts': [
             'dcos-launch=dcos_launch.cli:main',

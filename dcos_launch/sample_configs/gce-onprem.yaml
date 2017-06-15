@@ -19,3 +19,4 @@ key_helper: true
 ssh_user: dcos
 ssh_private_key_filename: foobar
 ssh_public_key: foobar
+gce_zone: us-west1-a
