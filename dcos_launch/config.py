@@ -113,10 +113,10 @@ def get_validated_config(config_path: str) -> dict:
             validator.schema.update(AWS_ONPREM_SCHEMA)
     elif platform == 'gce':
         validator.schema.update({
-            'zone': {
+            'gce_zone': {
                 'type': 'string',
                 'required': True,
-                'default_setter': lambda doc: dcos_launch.util.set_from_env('GCE_REGION')}})
+                'default_setter': lambda doc: dcos_launch.util.set_from_env('GCE_ZONE')}})
         if provider == 'onprem':
             validator.schema.update(GCE_ONPREM_SCHEMA)
     elif platform == 'azure':
@@ -213,12 +213,6 @@ ONPREM_DEPLOY_COMMON_SCHEMA = {
         'type': 'integer',
         'allowed': [1, 3, 5, 7, 9],
         'required': True},
-    'os_name': {
-        'type': 'string',
-        # not required because machine image can be set directly
-        'required': False,
-        'default': 'coreos',
-        'allowed': dcos_launch.util.OS_NAMES},
     'dcos_config': {
         'type': 'dict',
         'required': True,
@@ -245,6 +239,12 @@ AWS_ONPREM_SCHEMA = {
         'type': 'string',
         'dependencies': {
             'key_helper': False}},
+    'os_name': {
+        'type': 'string',
+        # not required because machine image can be set directly
+        'required': False,
+        'default': 'cent-os-7-dcos-prereqs',
+        'allowed': list(dcos_test_utils.aws.OS_SSH_INFO.keys())},
     'instance_ami': {
         'type': 'string',
         'required': True,
@@ -259,26 +259,27 @@ AWS_ONPREM_SCHEMA = {
     'ssh_user': {
         'required': True,
         'type': 'string',
-        'default_setter': lambda doc: dcos_test_utils.aws.SSH_INFO[doc['os_name']].user}}
+        'default_setter': lambda doc: dcos_test_utils.aws.OS_SSH_INFO[doc['os_name']].user}}
 
 GCE_ONPREM_SCHEMA = {
     'machine_type': {
         'type': 'string',
         'required': False,
         'default': 'n1-standard-4'},
+    'os_name': {
+        'type': 'string',
+        'required': False,
+        'default': 'coreos',
+        'allowed': ['coreos']},
     'source_image': {
         'type': 'string',
         'required': False,
-        'default_setter': lambda doc: dcos_test_utils.gce.OS_IMAGE_FAMILIES[doc['os_name']],
-        'allowed': ['coreos-stable']},
+        'default_setter': lambda doc: dcos_test_utils.gce.OS_IMAGE_FAMILIES.get(doc['os_name'], doc['os_name']),
+        'allowed': list(dcos_test_utils.gce.OS_IMAGE_FAMILIES.values())},
     'image_project': {
         'type': 'string',
         'required': False,
         'default_setter': lambda doc: dcos_test_utils.gce.IMAGE_PROJECTS[doc['os_name']]},
     'ssh_public_key': {
         'type': 'string',
-        'required': False},
-    'ssh_user': {
-        'required': True,
-        'type': 'string',
-        'default': 'dcos'}}
+        'required': False}}

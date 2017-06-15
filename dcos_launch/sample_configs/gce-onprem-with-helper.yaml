@@ -17,3 +17,4 @@ num_private_agents: 2
 num_public_agents: 1
 key_helper: true
 ssh_user: dcos
+gce_zone: us-west1-a

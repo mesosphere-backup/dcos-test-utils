@@ -5,7 +5,7 @@ installer_url: https://downloads.dcos.io/dcos/testing/master/dcos_generate_confi
 platform: aws
 provider: onprem
 aws_region: us-west-2
-os_name: centos
+os_name: cent-os-7
 instance_type: t2.micro
 dcos_config:
     cluster_name: My Awesome DC/OS
