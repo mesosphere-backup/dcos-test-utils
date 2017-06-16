@@ -337,12 +337,10 @@ class DcosApiSession(ARNodeApiClientMixin, RetryCommonHttpErrorsMixin, ApiClient
         }
 
         if r.status_code in expected_error_codes or r.status_code > 500:
-            default_message = 'Continuing to wait for Metronome.'
-            error_message = expected_error_codes.get(
-                r.status_code,
-                default_message,
-            )
-            log.info(error_message)
+            error_message = expected_error_codes.get(r.status_code)
+            if error_message:
+                log.info(error_message)
+            log.info('Continuing to wait for Metronome')
             log.info('Response body:')
             log.info(r.content.decode())
             return False
