@@ -336,8 +336,15 @@ class DcosApiSession(ARNodeApiClientMixin, RetryCommonHttpErrorsMixin, ApiClient
                   'It may be that the service is still starting up.')
         }
 
-        if r.status_code in expected_error_codes:
-            log.info(expected_error_codes[r.status_code])
+        if r.status_code in expected_error_codes or r.status_code > 500:
+            default_message = 'Continuing to wait for Metronome.'
+            error_message = expected_error_codes.get(
+                r.status_code,
+                default_message,
+            )
+            log.info(error_message)
+            log.info('Response body:')
+            log.info(r.content.decode())
             return False
 
         assert r.status_code == 200
