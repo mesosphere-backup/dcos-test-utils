@@ -323,6 +323,8 @@ class DcosApiSession(ARNodeApiClientMixin, RetryCommonHttpErrorsMixin, ApiClient
                     retry_on_result=lambda r: r is False,
                     retry_on_exception=lambda _: False)
     def _wait_for_metronome(self):
+        # Although this is named `wait_for_metronome`, some of the waiting
+        # done in this function is, implicitly, for Admin Router.
         r = self.get('/service/metronome/v1/jobs')
         expected_error_codes = {
             404: ('It may be the case that Admin Router is returning a 404 '
