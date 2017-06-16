@@ -340,7 +340,7 @@ class DcosApiSession(ARNodeApiClientMixin, RetryCommonHttpErrorsMixin, ApiClient
                 log.info(error_message)
             log.info('Continuing to wait for Metronome')
             log.info('Response body:')
-            log.info(r.content.decode())
+            log.info(r.text)
             return False
 
         assert r.status_code == 200
