@@ -330,8 +330,6 @@ class DcosApiSession(ARNodeApiClientMixin, RetryCommonHttpErrorsMixin, ApiClient
             404: ('It may be the case that Admin Router is returning a 404 '
                   'despite the Metronome service existing because it uses a cache. '
                   'This cache is updated periodically.'),
-            503: ('The cache is not working. This means that either Marathon '
-                  'or Mesos is not yet available.'),
             504: ('Metronome is returning a Gateway Timeout Error.'
                   'It may be that the service is still starting up.')
         }
