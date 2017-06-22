@@ -416,7 +416,7 @@ class DcosApiSession(ARNodeApiClientMixin, RetryCommonHttpErrorsMixin, ApiClient
         @retrying.retry(wait_fixed=2000, stop_max_delay=timeout * 1000,
                         retry_on_result=lambda ret: not ret,
                         retry_on_exception=lambda x: False)
-        def wait_for_completion():
+        def wait():
             r = self.metronome.get('jobs/' + job_id, params={'embed': 'history'})
             r.raise_for_status()
             out = r.json()
@@ -433,7 +433,7 @@ class DcosApiSession(ARNodeApiClientMixin, RetryCommonHttpErrorsMixin, ApiClient
         log.info('Starting metronome job')
         r = self.metronome.post('jobs/{}/runs'.format(job_id))
         r.raise_for_status()
-        wait_for_completion()
+        wait()
         log.info('Deleting metronome one-off')
         r = self.metronome.delete('jobs/' + job_id)
         r.raise_for_status()
