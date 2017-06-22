@@ -5,6 +5,8 @@ from dcos_launch import util
 from dcos_test_utils import gce
 from dcos_test_utils.helpers import Host
 
+from googleapiclient.errors import HttpError
+
 log = logging.getLogger(__name__)
 
 
@@ -13,16 +15,39 @@ class BareClusterLauncher(util.AbstractLauncher):
     def __init__(self, config):
         credentials_path = util.set_from_env('GOOGLE_APPLICATION_CREDENTIALS')
         credentials = util.read_file(credentials_path)
-        self.gce_wrapper = gce.GceWrapper(json.loads(credentials))
+        self.gce_wrapper = gce.GceWrapper(json.loads(credentials), credentials_path)
         self.config = config
-        self.deployment = gce.Deployment(self.gce_wrapper, config['deployment_name'], config['gce_zone'])
+
+    @property
+    def deployment(self):
+        try:
+            deployment = gce.BareClusterDeployment(self.gce_wrapper, self.config['deployment_name'],
+                                                   self.config['gce_zone'])
+            info = deployment.get_info()
+            errors = info['operation'].get('error')
+            if errors:
+                raise util.LauncherError('DeploymentContainsErrors', '''The deployment you are accessing contains
+                                          errors: ''' + str(errors))
+            return deployment
+        except HttpError as e:
+            if e.resp.status == 404:
+                raise util.LauncherError('DeploymentNotFound', "The deployment you are trying to access doesn't exist")\
+                    from e
 
     def create(self) -> dict:
         self.key_helper()
-        self.deployment.create(self.config['num_masters'], self.config['num_public_agents'],
-                               self.config['num_private_agents'], self.config['source_image'],
-                               self.config['machine_type'], self.config['image_project'], self.config['gce_zone'],
-                               self.config['ssh_user'], self.config['ssh_public_key'])
+        node_count = 1 + self.config['num_masters'] + self.config['num_public_agents'] \
+                       + self.config['num_private_agents']
+        gce.BareClusterDeployment.create(
+            self.gce_wrapper,
+            self.config['deployment_name'],
+            self.config['gce_zone'],
+            node_count,
+            self.config['source_image'],
+            self.config['machine_type'],
+            self.config['image_project'],
+            self.config['ssh_user'],
+            self.config['ssh_public_key'])
         return self.config
 
     def key_helper(self):
@@ -42,7 +67,7 @@ class BareClusterLauncher(util.AbstractLauncher):
             the network is deployed, a firewall for the network and an instance template are deployed. Finally,
             once the instance template is deployed, an instance group manager and all its instances are deployed.
         """
-        self.deployment.wait()
+        self.deployment.wait_for_completion()
 
     def delete(self):
         """ Deletes all the resources associated with the deployment (instance template, network, firewall, instance

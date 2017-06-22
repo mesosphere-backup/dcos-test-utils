@@ -275,11 +275,11 @@ GCE_ONPREM_SCHEMA = {
         'type': 'string',
         'required': False,
         'default_setter': lambda doc: dcos_test_utils.gce.OS_IMAGE_FAMILIES.get(doc['os_name'], doc['os_name']),
-        'allowed': list(dcos_test_utils.gce.OS_IMAGE_FAMILIES.values())},
+        'allowed': list(dcos_test_utils.gce.IMAGE_PROJECTS.keys())},
     'image_project': {
         'type': 'string',
         'required': False,
-        'default_setter': lambda doc: dcos_test_utils.gce.IMAGE_PROJECTS[doc['os_name']]},
+        'default_setter': lambda doc: dcos_test_utils.gce.IMAGE_PROJECTS[doc['source_image']]},
     'ssh_public_key': {
         'type': 'string',
         'required': False}}

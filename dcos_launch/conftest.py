@@ -1,5 +1,6 @@
 import functools
 import json
+from collections import namedtuple
 from contextlib import contextmanager
 
 import pytest
@@ -44,6 +45,18 @@ def ssh_key_path(tmpdir):
 class MockStack:
     def __init__(self):
         self.stack_id = dcos_launch.util.MOCK_STACK_ID
+
+
+class MockGceWrapper:
+    def __init__(self, _, __):
+        DeploymentManagerMock = namedtuple('DeploymentManagerMock', 'deployments')
+        DeploymentFunctionsMock = namedtuple('DeploymentFunctionsMock', 'insert delete get')
+        ApiRequestMock = namedtuple('ApiRequestMock', 'execute')
+        self.project_id = ''
+        api_request_mock = ApiRequestMock(lambda: {'operation': {'status': 'DONE'}})
+        self.deployment_manager = DeploymentManagerMock(lambda: DeploymentFunctionsMock(stub(api_request_mock),
+                                                                                        stub(api_request_mock),
+                                                                                        stub(api_request_mock)))
 
 
 mock_pub_priv_host = Host('127.0.0.1', '12.34.56')
@@ -137,11 +150,9 @@ def mocked_gce(monkeypatch, tmpdir):
 
     monkeypatch.setenv('GOOGLE_APPLICATION_CREDENTIALS', str(tmp_file))
     monkeypatch.setenv('GCE_ZONE', 'us-west1-a')
-    monkeypatch.setattr(dcos_test_utils.gce.GceWrapper, '__init__', lambda self, conf: setattr(self, 'project_id', ''))
-    monkeypatch.setattr(dcos_test_utils.gce.GceWrapper, 'create_deployment', stub({}))
-    monkeypatch.setattr(dcos_test_utils.gce.GceWrapper, 'get_instance_info', lambda x, y: MOCK_GCE_INSTANCE_INFO)
-    monkeypatch.setattr(dcos_test_utils.gce.GceWrapper, 'get_deployment_info', stub(MOCK_GCE_DEPLOYMENT_INFO))
-    monkeypatch.setattr(dcos_test_utils.gce.GceWrapper, 'delete_deployment', stub({}))
+    monkeypatch.setattr(dcos_test_utils.gce.GceWrapper, '__init__', MockGceWrapper.__init__)
+    monkeypatch.setattr(dcos_test_utils.gce.GceWrapper, 'get_instance_info', lambda _, __: MOCK_GCE_INSTANCE_INFO)
+    monkeypatch.setattr(dcos_test_utils.gce.GceWrapper, 'list_group_instances', lambda _, __: [{'instance': 'mock'}])
     monkeypatch.setattr(dcos_launch.gce.BareClusterLauncher, 'key_helper', lambda self: self.config.update(
         {'ssh_private_key': dcos_launch.util.MOCK_SSH_KEY_DATA, 'ssh_public_key': dcos_launch.util.MOCK_SSH_KEY_DATA}))
     monkeypatch.setattr(dcos_launch.gce.BareClusterLauncher, 'get_hosts', lambda self: [mock_pub_priv_host] *

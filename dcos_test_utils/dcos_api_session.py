@@ -15,8 +15,7 @@ import requests
 import retrying
 
 import dcos_test_utils.marathon
-from dcos_test_utils.helpers import (ApiClientSession,
-                                     RetryCommonHttpErrorsMixin, Url)
+from dcos_test_utils.helpers import ApiClientSession, RetryCommonHttpErrorsMixin, Url
 
 log = logging.getLogger(__name__)
 
