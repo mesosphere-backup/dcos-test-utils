@@ -437,7 +437,7 @@ class DcosApiSession(ARNodeApiClientMixin, RetryCommonHttpErrorsMixin, ApiClient
         r = self.metronome.delete('jobs/' + job_id)
         r.raise_for_status()
 
-    def mesos_sandbox_directory(self, slave_id, framework_id, task_id):
+    def mesos_sandbox_directory(self, slave_id, framework_id, executor_id, task_id=None):
         r = self.get('/agent/{}/state'.format(slave_id))
         r.raise_for_status()
         agent_state = r.json()
@@ -448,16 +448,23 @@ class DcosApiSession(ARNodeApiClientMixin, RetryCommonHttpErrorsMixin, ApiClient
             raise Exception('Framework {} not found on agent {}'.format(framework_id, slave_id))
 
         try:
-            executor = next(e for e in framework['executors'] if e['id'] == task_id)
+            executor = next(e for e in framework['executors'] if e['id'] == executor_id)
         except StopIteration:
-            raise Exception('Executor {} not found on framework {} on agent {}'.format(task_id, framework_id, slave_id))
+            raise Exception('Executor {} not found on framework {} on agent {}'.format(
+                executor_id, framework_id, slave_id))
 
-        return executor['directory']
+        directory = executor['directory']
 
-    def mesos_sandbox_file(self, slave_id, framework_id, task_id, filename):
+        if task_id is not None:
+            directory += '/tasks/' + task_id
+
+        return directory
+
+    def mesos_sandbox_file(self, slave_id, framework_id, executor_id, filename, task_id=None):
         r = self.get(
             '/agent/{}/files/download'.format(slave_id),
-            params={'path': self.mesos_sandbox_directory(slave_id, framework_id, task_id) + '/' + filename}
+            params={'path': self.mesos_sandbox_directory(
+                slave_id, framework_id, executor_id, task_id) + '/' + filename}
         )
         r.raise_for_status()
         return r.text
