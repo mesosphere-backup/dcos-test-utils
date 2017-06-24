@@ -103,15 +103,26 @@ def get_test_app(
             }
         ],
     })
-    if host_port == 0:
-        # port is being assigned by marathon so refer to this port by index
-        app['healthChecks'][0]['portIndex'] = 0
+
+    if network == Network.HOST:
+        if host_port == 0:
+            # port is being assigned by marathon so refer to this port by index
+            app['healthChecks'][0]['portIndex'] = 0
+        else:
+            app['healthChecks'][0]['port'] = host_port
     elif network == Network.BRIDGE:
+        if healthcheck_protocol == Healthcheck.MESOS_HTTP:
+            app['healthChecks'][0]['port'] = container_port
+        elif host_port == 0:
+            # port is being assigned by marathon so refer to this port by index
+            app['healthChecks'][0]['portIndex'] = 0
+        else:
+            app['healthChecks'][0]['port'] = host_port
+    else:
+        # USER network
         app['healthChecks'][0]['port'] = container_port if \
             healthcheck_protocol == Healthcheck.MESOS_HTTP else host_port
-    else:
-        # HOST or USER network with non-zero host port
-        app['healthChecks'][0]['port'] = host_port
+
     if container_type != Container.NONE:
         app['container'] = {
             'type': container_type.value,
