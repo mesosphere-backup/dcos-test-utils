@@ -12,7 +12,7 @@ log = logging.getLogger(__name__)
 
 class BareClusterLauncher(util.AbstractLauncher):
     # Launches a homogeneous cluster of plain GMIs intended for onprem DC/OS
-    def __init__(self, config):
+    def __init__(self, config: dict):
         credentials_path = util.set_from_env('GOOGLE_APPLICATION_CREDENTIALS')
         credentials = util.read_file(credentials_path)
         self.gce_wrapper = gce.GceWrapper(json.loads(credentials), credentials_path)
@@ -20,14 +20,16 @@ class BareClusterLauncher(util.AbstractLauncher):
 
     @property
     def deployment(self):
+        """ Builds a BareClusterDeployment instance with self.config, but only returns it successfully if the
+        corresponding real deployment (active machines) exists and doesn't contain any errors.
+        """
         try:
             deployment = gce.BareClusterDeployment(self.gce_wrapper, self.config['deployment_name'],
                                                    self.config['gce_zone'])
             info = deployment.get_info()
             errors = info['operation'].get('error')
             if errors:
-                raise util.LauncherError('DeploymentContainsErrors', '''The deployment you are accessing contains
-                                          errors: ''' + str(errors))
+                raise util.LauncherError('DeploymentContainsErrors', str(errors))
             return deployment
         except HttpError as e:
             if e.resp.status == 404:
@@ -60,18 +62,18 @@ class BareClusterLauncher(util.AbstractLauncher):
             self.config['ssh_public_key'] = public_key.decode()
 
     def get_hosts(self) -> [Host]:
-        return self.deployment.hosts
+        return list(self.deployment.hosts)
 
     def wait(self):
         """ Waits for the deployment to complete: first, the network that will contain the cluster is deployed. Once
-            the network is deployed, a firewall for the network and an instance template are deployed. Finally,
-            once the instance template is deployed, an instance group manager and all its instances are deployed.
+        the network is deployed, a firewall for the network and an instance template are deployed. Finally,
+        once the instance template is deployed, an instance group manager and all its instances are deployed.
         """
         self.deployment.wait_for_completion()
 
     def delete(self):
         """ Deletes all the resources associated with the deployment (instance template, network, firewall, instance
-            group manager and all its instances.
+        group manager and all its instances.
         """
         self.deployment.delete()
 

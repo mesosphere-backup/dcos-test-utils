@@ -38,8 +38,8 @@ class OnpremLauncher(dcos_launch.util.AbstractLauncher):
         elif self.config['platform'] == 'gce':
             return dcos_launch.gce.BareClusterLauncher(self.config)
         else:
-            raise dcos_launch.util.LauncherError('Platform currently not supported for onprem: {}'.format(
-                self.config['platform']))
+            raise dcos_launch.util.LauncherError('PlatformNotSupported', """Platform currently not supported for onprem:
+                                                 {}""".format(self.config['platform']))
 
     def get_onprem_cluster(self):
         return dcos_test_utils.onprem.OnpremCluster.from_hosts(

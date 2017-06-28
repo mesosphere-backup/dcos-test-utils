@@ -1,3 +1,8 @@
+""" This module allows for the creation and polling of network-isolated, homogeneous clusters on Google Compute Engine
+(GCE) for installing DC/OS. To achieve this, it uses the Cloud Deployment Manager and Compute Engine APIs. Usage of the
+Cloud Deployment Manager results in simpler code and far fewer API calls.
+"""
+
 import logging
 import typing
 import yaml
@@ -120,7 +125,7 @@ def catch_http_exceptions(f):
 
 class GceWrapper:
     @catch_http_exceptions
-    def __init__(self, credentials_dict, credentials_path):
+    def __init__(self, credentials_dict: dict, credentials_path: str):
         credentials = ServiceAccountCredentials.from_json_keyfile_name(
             credentials_path, scopes='https://www.googleapis.com/auth/cloud-platform')
         self.compute = discovery.build('compute', 'v1', credentials=credentials)
@@ -128,15 +133,16 @@ class GceWrapper:
         self.project_id = credentials_dict['project_id']
 
     @catch_http_exceptions
-    def get_instance_info(self, name, zone):
-        """Returns the dictionary representation of a GCE instance resource. For details on the contents of this
-           resource,see https://cloud.google.com/compute/docs/reference/latest/instances"""
+    def get_instance_info(self, name: str, zone: str):
+        """ Returns the dictionary representation of a GCE instance resource. For details on the contents of this
+        resource,see https://cloud.google.com/compute/docs/reference/latest/instances
+        """
         response = self.compute.instances().get(project=self.project_id, zone=zone, instance=name).execute()
         log.debug('get_instance_info response: ' + str(response))
         return response
 
     @catch_http_exceptions
-    def list_group_instances(self, group_name, zone) -> typing.Iterator(dict):
+    def list_group_instances(self, group_name: str, zone: str) -> typing.Iterator(dict):
         response = self.compute.instanceGroupManagers().listManagedInstances(project=self.project_id, zone=zone,
                                                                              instanceGroupManager=group_name).execute()
         log.debug('list_group_instances response: ' + str(response))
@@ -145,7 +151,7 @@ class GceWrapper:
             yield instance
 
     @retry(wait_fixed=2000, retry_on_result=lambda res: res is None, stop_max_delay=30 * 1000)
-    def get_instance_network_properties(self, instance_name, zone) -> dict:
+    def get_instance_network_properties(self, instance_name: str, zone: str) -> dict:
         network_info = self.get_instance_info(instance_name, zone)['networkInterfaces'][0]
         if 'networkIP' not in network_info or 'accessConfigs' not in network_info:
             return None
@@ -154,7 +160,7 @@ class GceWrapper:
         return network_info
 
     @catch_http_exceptions
-    def create_deployment(self, name, deployment_config):
+    def create_deployment(self, name: str, deployment_config: dict):
         body = {
             'name': name,
             'target': {
@@ -163,13 +169,14 @@ class GceWrapper:
             }
         }
 
+        log.info('Creating GCE deployment...')
         response = self.deployment_manager.deployments().insert(
             project=self.project_id, body=body).execute()
         log.debug('create_deployment response: ' + str(response))
 
 
 class Deployment:
-    def __init__(self, gce_wrapper, name, zone):
+    def __init__(self, gce_wrapper: GceWrapper, name: str, zone: str):
         self.gce_wrapper = gce_wrapper
         self.name = name
         self.zone = zone
@@ -182,15 +189,16 @@ class Deployment:
 
     @catch_http_exceptions
     def get_info(self) -> dict:
-        """Returns the dictionary representation of a GCE deployment resource. For details on the contents of this
-           resource, see https://cloud.google.com/deployment-manager/docs/reference/latest/deployments#resource"""
+        """ Returns the dictionary representation of a GCE deployment resource. For details on the contents of this
+        resource, see https://cloud.google.com/deployment-manager/docs/reference/latest/deployments#resource
+        """
         response = self.gce_wrapper.deployment_manager.deployments().get(project=self.gce_wrapper.project_id,
                                                                          deployment=self.name).execute()
         log.debug('get_deployment_info response: ' + str(response))
         return response
 
     def _check_status(response: dict) -> bool:
-        """Checks the status of the deployment until it is done or has failed
+        """ Checks the status of the deployment until it is done or has failed
         :param response : <dict> http response containing info about the deployment
         :return: <boolean> whether to continue checking the status of the deployment (True) or not (False)
         """
@@ -219,15 +227,15 @@ class BareClusterDeployment(Deployment):
     @classmethod
     def create(
             cls,
-            gce_wrapper,
-            name,
-            zone,
-            node_count,
-            source_image,
-            machine_type,
-            image_project,
-            ssh_user,
-            ssh_public_key):
+            gce_wrapper: GceWrapper,
+            name: str,
+            zone: str,
+            node_count: int,
+            source_image: str,
+            machine_type: str,
+            image_project: str,
+            ssh_user: str,
+            ssh_public_key: str):
         template_name = name + '-template'
         network_name = name + '-network'
         firewall_name = name + '-norules'

@@ -15,7 +15,6 @@ dcos_config:
 num_masters: 1
 num_private_agents: 2
 num_public_agents: 1
-key_helper: true
 ssh_user: dcos
 ssh_private_key_filename: foobar
 ssh_public_key: foobar
