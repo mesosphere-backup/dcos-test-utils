@@ -18,7 +18,7 @@ from dcos_test_utils.helpers import Host
 log = logging.getLogger(__name__)
 
 # mapping used for the commonly used os name formats that differ from their respective formats in gce.
-# Update these mappings to expand OS support
+# If you must expand OS support, update these mappings
 OS_IMAGE_FAMILIES = {
     'cent-os-7': 'centos-7',
     'ubuntu-16-04': 'ubuntu-1604-lts',
@@ -142,7 +142,7 @@ class GceWrapper:
         return response
 
     @catch_http_exceptions
-    def list_group_instances(self, group_name: str, zone: str) -> typing.Iterator(dict):
+    def list_group_instances(self, group_name: str, zone: str) -> typing.Iterator[dict]:
         response = self.compute.instanceGroupManagers().listManagedInstances(project=self.project_id, zone=zone,
                                                                              instanceGroupManager=group_name).execute()
         log.debug('list_group_instances response: ' + str(response))

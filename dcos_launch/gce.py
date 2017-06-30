@@ -1,3 +1,5 @@
+""" Launcher functionality for the Google Compute Engine (GCE)
+"""
 import json
 import logging
 
@@ -13,6 +15,9 @@ log = logging.getLogger(__name__)
 class BareClusterLauncher(util.AbstractLauncher):
     # Launches a homogeneous cluster of plain GMIs intended for onprem DC/OS
     def __init__(self, config: dict):
+        """ For this to work, you must set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your
+        json file that contains the credentials for your Google service account
+        """
         credentials_path = util.set_from_env('GOOGLE_APPLICATION_CREDENTIALS')
         credentials = util.read_file(credentials_path)
         self.gce_wrapper = gce.GceWrapper(json.loads(credentials), credentials_path)
@@ -33,13 +38,14 @@ class BareClusterLauncher(util.AbstractLauncher):
             return deployment
         except HttpError as e:
             if e.resp.status == 404:
-                raise util.LauncherError('DeploymentNotFound', "The deployment you are trying to access doesn't exist")\
-                    from e
+                raise util.LauncherError('DeploymentNotFound',
+                                         "The deployment you are trying to access doesn't exist") from e
+            raise e
 
     def create(self) -> dict:
         self.key_helper()
-        node_count = 1 + self.config['num_masters'] + self.config['num_public_agents'] \
-                       + self.config['num_private_agents']
+        node_count = 1 + (self.config['num_masters'] + self.config['num_public_agents']
+                          + self.config['num_private_agents'])
         gce.BareClusterDeployment.create(
             self.gce_wrapper,
             self.config['deployment_name'],
