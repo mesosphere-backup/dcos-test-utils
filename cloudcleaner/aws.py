@@ -2,16 +2,11 @@ import collections
 import logging
 from datetime import timedelta
 
-import boto3
 import botocore.exceptions
 
-from cloudcleaner.common import (
-    AbstractCleaner,
-    check_test,
-    delta_to_str,
-    EXPIRE_WARNING_TIME,
-    parse_delta)
-
+from cloudcleaner.common import (EXPIRE_WARNING_TIME, AbstractCleaner, check_test, delta_to_str, parse_delta)
+from dcos_launch import util
+from dcos_test_utils import aws
 
 aws_region_names = [
     {
@@ -68,10 +63,11 @@ def get_service_resources(service, resource):
     """Return resources in every region for the given boto3 service and resource type."""
     check_test()
 
-    for acct in [boto3.session.Session()]:
-        for region in aws_region_names:
-            for instance in getattr(acct.resource(service, region_name=region['id']), resource).all():
-                yield instance
+    for region in aws_region_names:
+        boto = aws.BotoWrapper(region['id'], util.set_from_env('AWS_ACCESS_KEY_ID'),
+                               util.set_from_env('AWS_SECRET_ACCESS_KEY'))
+        for instance in getattr(boto.resource(service), resource).all():
+            yield instance
 
 
 def get_instances():

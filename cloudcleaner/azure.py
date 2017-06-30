@@ -1,33 +1,18 @@
 import collections
 import logging
-import os
 from datetime import datetime, timedelta, timezone
 
-from azure.common.credentials import ServicePrincipalCredentials
-from azure.mgmt.resource.resources import ResourceManagementClient
 from azure.mgmt.resource.resources.v2017_05_10.models.resource_group import ResourceGroup
-from azure.monitor import MonitorClient
 
-from cloudcleaner.common import (
-    AbstractCleaner,
-    CI_OWNER,
-    delta_to_str,
-    EXPIRE_WARNING_TIME,
-    parse_delta)
+from cloudcleaner.common import (CI_OWNER, EXPIRE_WARNING_TIME, AbstractCleaner, delta_to_str, parse_delta)
+from dcos_launch import util
+from dcos_test_utils import arm
 
 
-def get_resource_mgmt_client():
-    return ResourceManagementClient(ServicePrincipalCredentials(
-        client_id=os.environ['AZURE_CLIENT_ID'],
-        secret=os.environ['AZURE_CLIENT_SECRET'],
-        tenant=os.environ['AZURE_TENANT_ID']), os.environ['AZURE_SUBSCRIPTION_ID'])
-
-
-def get_monitor_client():
-    return MonitorClient(ServicePrincipalCredentials(
-        client_id=os.environ['AZURE_CLIENT_ID'],
-        secret=os.environ['AZURE_CLIENT_SECRET'],
-        tenant=os.environ['AZURE_TENANT_ID']), os.environ['AZURE_SUBSCRIPTION_ID'])
+@property
+def azure_wrapper():
+    return arm.AzureWrapper(None, util.set_from_env('AZURE_SUBSCRIPTION_ID'), util.set_from_env('AZURE_CLIENT_ID'),
+                            util.set_from_env('AZURE_CLIENT_SECRET'), util.set_from_env('AZURE_TENANT_ID'))
 
 
 def tag_creation_time(resource_group: ResourceGroup):
@@ -47,7 +32,7 @@ def tag_creation_time(resource_group: ResourceGroup):
         'eventTimestamp',
         'subStatus'])
     creation_time = None
-    for event in get_monitor_client().activity_logs.list(filter=log_filter, select=select):
+    for event in azure_wrapper.mc.activity_logs.list(filter=log_filter, select=select):
         if 'Update resource group' != event.operation_name.localized_value:
             continue
         if event.sub_status.value == 'Created':
@@ -57,7 +42,7 @@ def tag_creation_time(resource_group: ResourceGroup):
     if creation_time is None:
         creation_time = oldest_log_time
     logging.info('No creation time found in logs; setting creation time to {}'.format(creation_time.isoformat()))
-    update_tags(get_resource_mgmt_client(), resource_group,
+    update_tags(azure_wrapper.rmc, resource_group,
                 {'creation_time': creation_time.replace(tzinfo=None).isoformat()})
 
 
@@ -256,7 +241,7 @@ def make_json_report(now, categorized_resource_groups, resource_group_actions):
 class AzureCleaner(AbstractCleaner):
     def __init__(self, now):
         super().__init__(now)
-        self.rmc = get_resource_mgmt_client()
+        self.rmc = azure_wrapper.rmc
 
     def collect_resources(self, users):
         self.categorized_resource_groups = get_categorized_resource_groups(
