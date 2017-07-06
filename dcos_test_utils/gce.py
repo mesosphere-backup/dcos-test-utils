@@ -181,6 +181,10 @@ class Deployment:
         self.name = name
         self.zone = zone
 
+    @property
+    def instance_group_name(self):
+        return self.name + '-group'
+
     @catch_http_exceptions
     def delete(self):
         response = self.gce_wrapper.deployment_manager.deployments().delete(project=self.gce_wrapper.project_id,
@@ -215,15 +219,18 @@ class Deployment:
     def wait_for_completion(self) -> dict:
         return self.get_info()
 
+    def get_instance_group_info(self) -> dict:
+        response = self.gce_wrapper.deployment_manager.resources().get(project=self.gce_wrapper.project_id,
+                                                                       deployment=self.name,
+                                                                       resource=self.instance_group_name).execute()
+        log.debug('get_instance_group response: ' + str(response))
+        return response
+
 
 class BareClusterDeployment(Deployment):
     """ A specialized deployment that contains a basic, network-connected,
     cluster of identical, minimally configured machines for installing DC/OS
     """
-    @property
-    def instance_group_name(self):
-        return self.name + '-group'
-
     @classmethod
     def create(
             cls,
