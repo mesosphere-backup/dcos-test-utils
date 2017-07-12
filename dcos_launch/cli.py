@@ -1,7 +1,7 @@
 """DC/OS Launch
 
 Usage:
-  dcos-launch create [-L LEVEL -c PATH -i PATH]
+  dcos-launch create [-L LEVEL -c PATH -i PATH -w]
   dcos-launch wait [-L LEVEL -i PATH]
   dcos-launch describe [-L LEVEL -i PATH]
   dcos-launch pytest [-L LEVEL -i PATH -e LIST] [--] [<pytest_extras>]...
@@ -30,6 +30,8 @@ Options:
   -L LEVEL --log-level=LEVEL
             One of: critical, error, warning, info, debug, and trace
             [default: info].
+  -w       --wait-on-create
+            Block until the cluster is up and running after creation.
 """
 import json
 import os
@@ -77,7 +79,11 @@ def do_main(args):
             raise dcos_launch.util.LauncherError(
                 'InputConflict',  '{} already exists! Delete this or specify a '
                 'different cluster info path with the -i option'.format(info_path))
-        write_json(info_path, dcos_launch.get_launcher(config).create())
+        launcher = dcos_launch.get_launcher(info)
+        write_json(info_path, launcher.create())
+        if args['--wait-on-create']:
+            launcher.wait()
+            print('Cluster is ready!')
         return 0
 
     try:
